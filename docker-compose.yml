@@ -1,0 +1,65 @@
+# CampusOne — full local stack: MongoDB + backend API + frontend (nginx).
+# Usage:
+#   docker compose up --build
+#   open http://localhost:8080   (demo data is seeded automatically)
+#
+# Override secrets by exporting them or via a root .env file, e.g.:
+#   JWT_SECRET=... JWT_REFRESH_SECRET=... docker compose up --build
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    ports:
+      - "27017:27017" # exposed for local tools (Compass); remove if not needed
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "5000"
+      MONGODB_URI: mongodb://mongo:27017/campusone
+      # Browser origin allowed by CORS (the nginx frontend).
+      CLIENT_URL: http://localhost:8080
+      AUTH_PROVIDER: local
+      JWT_SECRET: ${JWT_SECRET:-change-me-access-secret-please-override}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh-secret-please-override}
+      JWT_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      STORAGE_DRIVER: local
+      UPLOAD_DIR: uploads
+      MAX_FILE_SIZE_MB: "15"
+      # Seed demo data on first boot so the app is never empty.
+      SEED_ON_START: "true"
+    ports:
+      - "5000:5000"
+    volumes:
+      - backend-uploads:/app/uploads
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Same-origin: nginx proxies /api and /socket.io to the backend.
+        VITE_API_URL: /api
+        VITE_SOCKET_URL: ""
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  mongo-data:
+  backend-uploads:

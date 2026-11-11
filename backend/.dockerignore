@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log
+.env
+.env.*
+!.env.example
+uploads
+uploads-test
+coverage
+.git
+.gitignore
+Dockerfile
+.dockerignore
+tests
+*.test.js
